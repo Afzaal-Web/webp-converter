@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Converter - WebP</title>
+    <meta name="description" content="Convert PNG/JPG images to WebP format with compression and batch processing">
+    <meta name="theme-color" content="#6366f1">
+    
+
+    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==">
+    
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Image Converter</h1>
+            <p>Convert PNG/JPG images to WebP format</p>
+            <button id="darkModeToggle" class="theme-toggle" aria-label="Toggle dark mode">
+                <span class="sun">☀️</span>
+                <span class="moon">🌙</span>
+            </button>
+        </header>
+
+        <!-- Sticky Product Owner Badge -->
+        <div class="sticky-owner-badge">
+            <div class="owner-content">
+                <img src="owner.jpg" alt="Afzaal" class="owner-picture">
+                <div class="owner-info">
+                    <span class="owner-label">Developed By</span>
+                    <span class="owner-name">Muhammad Afzaal</span>
+                </div>
+            </div>
+        </div>
+
+        <main>
+            <!-- Upload Section -->
+            <section class="upload-section">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-content">
+                        <div class="upload-icon">📁</div>
+                        <h3>Drop images here or click to upload</h3>
+                        <p>Supports PNG, JPG, JPEG (up to 100 images)</p>
+                        <input type="file" id="fileInput" multiple accept="image/png,image/jpeg,image/jpg" hidden>
+                        <button class="upload-btn" id="chooseFilesBtn">
+                            Choose Files
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Controls Section -->
+            <section class="controls-section" id="controlsSection" style="display: none;">
+                <div class="controls-grid">
+                    <!-- Format Display -->
+                    <div class="control-group">
+                        <label>Output Format:</label>
+                        <div class="format-display">WebP</div>
+                    </div>
+
+                    <!-- Quality Control -->
+                    <div class="control-group">
+                        <label for="qualitySlider">Quality: <span id="qualityValue">80%</span></label>
+                        <input type="range" id="qualitySlider" min="0.1" max="1" step="0.1" value="0.8">
+                        <div class="quality-presets">
+                            <button class="preset-btn" data-quality="0.9">High (90%)</button>
+                            <button class="preset-btn active" data-quality="0.8">Balanced (80%)</button>
+                            <button class="preset-btn" data-quality="0.6">Small (60%)</button>
+                        </div>
+                    </div>
+
+                    <!-- Resize Controls -->
+                    <div class="control-group">
+                        <label>Resize (optional):</label>
+                        <div class="resize-inputs">
+                            <input type="number" id="maxWidth" placeholder="Max width" min="1">
+                            <span>×</span>
+                            <input type="number" id="maxHeight" placeholder="Max height" min="1">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="maintainAspectRatio" checked>
+                                Maintain aspect ratio
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Batch Rename -->
+                    <div class="control-group">
+                        <label for="filePrefix">File prefix:</label>
+                        <input type="text" id="filePrefix" placeholder="converted_" value="converted_">
+                    </div>
+                </div>
+
+                <div class="action-buttons">
+                    <button id="convertBtn" class="btn-primary">Convert Images</button>
+                    <button id="downloadAllBtn" class="btn-secondary" disabled>Download All as ZIP</button>
+                </div>
+            </section>
+
+            <!-- Progress Section -->
+            <section class="progress-section" id="progressSection" style="display: none;">
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text">
+                        <span id="progressText">Converting images...</span>
+                        <span id="progressCount">0 / 0</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section" id="resultsSection" style="display: none;">
+                <div class="results-header">
+                    <h3>Conversion Results</h3>
+                    <div class="summary" id="summary">
+                        <span id="totalOriginal">0 MB</span> → 
+                        <span id="totalConverted">0 MB</span> 
+                        (<span id="totalSaved">0%</span> saved)
+                    </div>
+                </div>
+                
+                <div class="results-grid" id="resultsGrid">
+                    <!-- Converted images will be displayed here -->
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Image Converter · Free & Secure</p>
+        </footer>
+    </div>
+
+    <!-- Web Worker Script -->
+    <script id="workerScript" type="javascript/worker">
+        // Image conversion worker
+        self.onmessage = function(e) {
+            const { imageData, quality, format, maxWidth, maxHeight, maintainAspectRatio } = e.data;
+            
+            const canvas = new OffscreenCanvas(imageData.width, imageData.height);
+            const ctx = canvas.getContext('2d');
+            
+            // Draw original image
+            ctx.drawImage(imageData, 0, 0);
+            
+            // Resize if needed
+            let finalCanvas = canvas;
+            if (maxWidth || maxHeight) {
+                const { width, height } = calculateNewDimensions(
+                    imageData.width, 
+                    imageData.height, 
+                    maxWidth, 
+                    maxHeight, 
+                    maintainAspectRatio
+                );
+                
+                if (width !== imageData.width || height !== imageData.height) {
+                    const resizedCanvas = new OffscreenCanvas(width, height);
+                    const resizedCtx = resizedCanvas.getContext('2d');
+                    resizedCtx.drawImage(canvas, 0, 0, width, height);
+                    finalCanvas = resizedCanvas;
+                }
+            }
+            
+                         // Convert to WebP format
+             const mimeType = 'image/webp';
+             const fileName = 'image.webp';
+            
+            finalCanvas.convertToBlob({ type: mimeType, quality: quality })
+                .then(blob => {
+                    self.postMessage({
+                        success: true,
+                        blob: blob,
+                        fileName: fileName,
+                        originalSize: imageData.size,
+                        convertedSize: blob.size
+                    });
+                })
+                .catch(error => {
+                    self.postMessage({
+                        success: false,
+                        error: error.message
+                    });
+                });
+        };
+        
+        function calculateNewDimensions(originalWidth, originalHeight, maxWidth, maxHeight, maintainAspectRatio) {
+            let newWidth = originalWidth;
+            let newHeight = originalHeight;
+            
+            if (maintainAspectRatio) {
+                const aspectRatio = originalWidth / originalHeight;
+                
+                if (maxWidth && maxHeight) {
+                    if (maxWidth / aspectRatio <= maxHeight) {
+                        newWidth = maxWidth;
+                        newHeight = maxWidth / aspectRatio;
+                    } else {
+                        newHeight = maxHeight;
+                        newWidth = maxHeight * aspectRatio;
+                    }
+                } else if (maxWidth) {
+                    newWidth = maxWidth;
+                    newHeight = maxWidth / aspectRatio;
+                } else if (maxHeight) {
+                    newHeight = maxHeight;
+                    newWidth = maxHeight * aspectRatio;
+                }
+            } else {
+                if (maxWidth) newWidth = maxWidth;
+                if (maxHeight) newHeight = maxHeight;
+            }
+            
+            return { width: Math.round(newWidth), height: Math.round(newHeight) };
+        }
+    </script>
+
+    <!-- Main Script -->
+    <script src="script.js"></script>
+</body>
+</html>
