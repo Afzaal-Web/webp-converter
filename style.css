@@ -96,6 +96,7 @@ header p {
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     transition: all 0.3s ease;
+    animation: float 3s ease-in-out infinite;
 }
 
 .sticky-owner-badge:hover {
@@ -745,6 +746,16 @@ footer {
     }
     50% {
         opacity: 0.5;
+    }
+}
+
+/* Floating animation for owner badge */
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-10px);
     }
 }
 
